@@ -6,8 +6,6 @@ aurhelper="yay"
 repobranch="master"
 export TERM=ansi
 
-name="username"
-
 installpkg() {
 	pacman --noconfirm --needed -S "$1" >/dev/null 2>&1
 }
@@ -25,23 +23,36 @@ error() {
 
 adduserandpass() {
 	# Adds user `name` with password `pass`
+	read -s -p "Enter username: " name
+	echo
+	# check username. requires username to
+	#   start with lowercase letter or underscore
+	#   contain only lowercase letters, digits, underscores and hyphens
+	if ! echo "$name" | grep -q "^[a-z_][a-z0-9_-]*$"; then
+		error "invalid username. exiting."
+	fi
+
+	# abort if user already exists
+	if id -u "$name" >/dev/null 2>&1; then
+		error "user already exists. exiting."
+	fi
+
 	read -s -p "Enter password: " pass1
 	echo
 	read -s -p "Confirm password: " pass2
 	echo
 
 	if [ "$pass1" != "$pass2" ]; then
+		unset pass1 pass2
 		error "passwords do no match. exiting."
 	fi
 
 	info "adding user $name and setting password..."
-	useradd -m -g wheel -s /bin/zsh "$name" >/dev/null 2>&1 ||
-		usermod -a -G wheel "$name" &&
-		mkdir -p /home/"$name" &&
-		chown "$name":wheel /home/"$name"
+	useradd -mG wheel -s /bin/zsh "$name" >/dev/null 2>&1 ||
+		error "unable to add user. exiting."
 	export repodir="/home/$name/.local/src"
 	mkdir -p "$repodir"
-	chown -R "$name":wheel "$(dirname "$repodir")"
+	chown -R "$name":"$name" "$(dirname "$repodir")"
 	echo "$name:$pass1" | chpasswd
 	unset pass1 pass2
 	info "done."
@@ -151,7 +162,7 @@ installdotfiles() {
 	[ -z "$3" ] && branch="master" || branch="$repobranch"
 	tempdir=$(mktemp -d)
 	[ ! -d "$2" ] && mkdir -p "$2"
-	chown "$name":wheel "$tempdir" "$2"
+	chown "$name":"$name" "$tempdir" "$2"
 	sudo -u "$name" git clone \
 		--depth 1 \
 		--single-branch \
@@ -163,7 +174,7 @@ installdotfiles() {
 		"$1" "$tempdir"
 	sudo -u "$name" cp -rfT "$tempdir" "$2"
 	pushd "$2" > /dev/null || error "pushd failed. exiting."
-	./install
+	sudo -u "$name" ./install
 	popd > /dev/null || error "popd failed. exiting."
 	info "done."
 }
@@ -181,18 +192,6 @@ fi
 # check for internet connection
 if ! ping -c 1 8.8.8.8 &> /dev/null; then
     error "currently not connected to the internet. exiting."
-fi
-
-# check username. requires username to
-#   start with lowercase letter or underscore
-#   contain only lowercase letters, digits, underscores and hyphens
-if ! echo "$name" | grep -q "^[a-z_][a-z0-9_-]*$"; then
-    error "invalid username. exiting."
-fi
-
-# abort if user already exists
-if id -u "$name" >/dev/null 2>&1; then
-    error "user already exists. exiting."
 fi
 
 # refresh Arch keyrings
@@ -248,11 +247,10 @@ echo "blacklist pcspkr" >/etc/modprobe.d/nobeep.conf
 chsh -s /bin/zsh "$name" >/dev/null 2>&1
 sudo -u "$name" mkdir -p "/home/$name/.cache/zsh/"
 
-# allow wheel users to sudo with password and allow several system commands
-# (like `shutdown` to run without password).
-echo "%wheel ALL=(ALL:ALL) ALL" >/etc/sudoers.d/00-larbs-wheel-can-sudo
-echo "%wheel ALL=(ALL:ALL) NOPASSWD: /usr/bin/shutdown,/usr/bin/reboot,/usr/bin/systemctl suspend,/usr/bin/wifi-menu,/usr/bin/mount,/usr/bin/umount,/usr/bin/pacman -Syu,/usr/bin/pacman -Syyu,/usr/bin/pacman -Syyu --noconfirm,/usr/bin/loadkeys,/usr/bin/pacman -Syyuw --noconfirm,/usr/bin/pacman -S -y --config /etc/pacman.conf --,/usr/bin/pacman -S -y -u --config /etc/pacman.conf --" >/etc/sudoers.d/01-larbs-cmds-without-password
-echo "Defaults editor=/usr/bin/nvim" >/etc/sudoers.d/02-larbs-visudo-editor
+# allow wheel users to sudo with password
+echo "%wheel ALL=(ALL:ALL) ALL" >/etc/sudoers.d/00-dabs-wheel-can-sudo
+echo "%wheel ALL=(ALL:ALL) NOPASSWD: /usr/bin/shutdown,/usr/bin/reboot" >/etc/sudoers.d/01-dabs-cmds-without-password
+echo "Defaults editor=/usr/bin/nvim" >/etc/sudoers.d/02-dabs-visudo-editor
 mkdir -p /etc/sysctl.d
 echo "kernel.dmesg_restrict = 0" > /etc/sysctl.d/dmesg.conf
 
