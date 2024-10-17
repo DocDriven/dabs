@@ -21,6 +21,6 @@ As this script uses my dotfiles, you might have to edit a few files:
   * set ´interface´ for the wireless-network module to the correct interface (or diable it entirely)
   * set ´hwmon´ for the temperature-cpu module to the correct path
 * /home/username/.dotfiles/config/x11/xprofile
-  * save your desired wallpaper to /home/username/.config/x11/wallpaper.jpg OR
+  * save your desired wallpaper to /home/username/.config/bg/wallpaper.jpg OR
   * change the path so that it references your desired wallpaper
 
